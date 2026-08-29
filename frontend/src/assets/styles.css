@@ -1,0 +1,145 @@
+/* ---------------------------------------------------------------------
+   PULSE design tokens.
+
+   Direction: mission-control console for a podcast editor — the room a
+   producer sits in at 1am cutting the episode that goes out at 6am.
+   Everything reads as instrumentation: waveforms, timecodes, status
+   lights, not marketing chrome.
+   ------------------------------------------------------------------- */
+:root {
+  /* Surfaces */
+  --bg: #0a0a0f;
+  --surface: #131320;
+  --surface-raised: #191928;
+  --surface-inset: #0e0e17;
+  --border: #262638;
+  --border-bright: #33334a;
+
+  /* Brand */
+  --primary: #6c5ce7;
+  --primary-dim: #4f42a8;
+  --primary-glow: rgba(108, 92, 231, 0.35);
+  --secondary: #00e676;
+  --secondary-dim: #0a9c50;
+
+  /* Semantic (mirrors backend marker colors: strong=green, weak=red,
+     clip=blue, opening/closing=amber) */
+  --strong: #00e676;
+  --weak: #ff5470;
+  --clip: #4fa8ff;
+  --bookend: #ffc857;
+
+  /* Text */
+  --text: #edf0f7;
+  --text-dim: #9a9ab0;
+  --text-faint: #5f5f78;
+
+  /* Type */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Radius / motion */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(
+      circle at 15% -10%,
+      rgba(108, 92, 231, 0.08),
+      transparent 40%
+    ),
+    radial-gradient(circle at 85% 0%, rgba(0, 230, 118, 0.05), transparent 35%);
+  background-attachment: fixed;
+}
+
+#app {
+  min-height: 100%;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--primary-glow);
+}
+
+/* Scrollbars: thin, dark, unobtrusive */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Focus visibility, kept even though the palette is dark */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
