@@ -17,6 +17,9 @@ COPY . .
 # container restarts/redeploys.
 RUN mkdir -p /app/media/uploads /app/media/derived
 
+# Render (and most PaaS) inject a dynamic $PORT — bind to that, falling
+# back to 8000 for local `docker run` where it isn't set. Migrations run
+# on every container start; safe to run repeatedly since Alembic tracks
+# what's already applied.
 EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
