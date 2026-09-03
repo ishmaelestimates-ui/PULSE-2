@@ -10,7 +10,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 
 from alembic import op
-from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
+from app.db_compat import pg_enum, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
 
 # revision identifiers, used by Alembic.
 revision: str = "0002"
@@ -34,6 +34,19 @@ def upgrade() -> None:
     # later), so a transcript is no longer required at creation time.
     op.alter_column("episodes", "transcript", existing_type=sa.Text(), nullable=True)
 
+    # Use the already-created PostgreSQL ENUM directly.  The
+    # enum_compat()/with_variant() wrapper can cause SQLAlchemy to issue a
+    # second CREATE TYPE during op.create_table().  SQLite gets String for
+    # local/dev compatibility.
+    media_type_column = (
+        media_type_enum if bind.dialect.name == "postgresql" else sa.String(length=50)
+    )
+    transcription_status_column = (
+        transcription_status_enum
+        if bind.dialect.name == "postgresql"
+        else sa.String(length=50)
+    )
+
     op.create_table(
         "media_files",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
@@ -48,12 +61,12 @@ def upgrade() -> None:
         sa.Column("file_path", sa.String(length=1000), nullable=False),
         sa.Column("file_size", sa.Integer(), nullable=False),
         sa.Column("duration", sa.Float(), nullable=True),
-        sa.Column("media_type", enum_compat(media_type_enum), nullable=False),
+        sa.Column("media_type", media_type_column, nullable=False),
         sa.Column("audio_path", sa.String(length=1000), nullable=True),
         sa.Column("thumbnail_path", sa.String(length=1000), nullable=True),
         sa.Column(
             "transcription_status",
-            enum_compat(transcription_status_enum),
+            transcription_status_column,
             nullable=False,
             server_default="none",
         ),
