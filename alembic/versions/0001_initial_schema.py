@@ -27,6 +27,7 @@ decision_type_enum = postgresql.ENUM(
     "closing",
     name="decision_type_enum",
 )
+decision_type_enum.create_type = False
 
 review_status_enum = postgresql.ENUM(
     "recommended",
@@ -35,6 +36,7 @@ review_status_enum = postgresql.ENUM(
     "unresolved",
     name="review_status_enum",
 )
+review_status_enum.create_type = False
 
 
 def upgrade() -> None:
