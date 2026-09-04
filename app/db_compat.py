@@ -27,7 +27,7 @@ def pg_enum(*values: str, name: str) -> ENUM:
     column type (adds the SQLite fallback) and `create_enum_if_pg` /
     `drop_enum_if_pg` for the explicit CREATE TYPE / DROP TYPE migration
     calls, which are only valid against Postgres."""
-    return ENUM(*values, name=name)
+    return ENUM(*values, name=name, create_type=False)
 
 
 def enum_compat(enum_type: ENUM, length: int = 50):
