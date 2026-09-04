@@ -28,7 +28,12 @@ _PBKDF2_ALGO = "sha256"
 
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
-    derived = hashlib.pbkdf2_hmac(_PBKDF2_ALGO, password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    derived = hashlib.pbkdf2_hmac(
+        _PBKDF2_ALGO,
+        password.encode("utf-8"),
+        salt,
+        _PBKDF2_ITERATIONS,
+    )
     return f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt.hex()}${derived.hex()}"
 
 
@@ -43,7 +48,12 @@ def verify_password(password: str, stored_hash: str) -> bool:
     except (ValueError, AttributeError):
         return False
 
-    candidate = hashlib.pbkdf2_hmac(_PBKDF2_ALGO, password.encode("utf-8"), salt, iterations)
+    candidate = hashlib.pbkdf2_hmac(
+        _PBKDF2_ALGO,
+        password.encode("utf-8"),
+        salt,
+        iterations,
+    )
     return hmac.compare_digest(candidate, expected)
 
 
@@ -76,9 +86,13 @@ def generate_magic_link_token() -> str:
 
 
 def bootstrap_admin_if_needed(db) -> None:
-    """Creates the first admin user if the users table is empty — an
-    invite requires an existing admin, so something has to seed the
-    first one. Called once at app startup (see app/main.py)."""
+    """Creates or repairs the configured bootstrap admin at app startup.
+
+    When BOOTSTRAP_ADMIN_PASSWORD is set, the configured email is made an
+    active admin with that password. This also repairs an existing bootstrap
+    account if the database was initialized before bootstrap credentials
+    were configured.
+    """
     import logging
 
     from app.models.user import User, UserRole
@@ -86,12 +100,48 @@ def bootstrap_admin_if_needed(db) -> None:
     logger = logging.getLogger(__name__)
     settings = get_settings()
 
+    email = settings.bootstrap_admin_email
+    configured_password = settings.bootstrap_admin_password
+
+    if configured_password:
+        admin = db.query(User).filter(User.email == email).first()
+
+        if admin is None:
+            admin = User(
+                email=email,
+                name="Admin",
+                role=UserRole.ADMIN,
+                password_hash=hash_password(configured_password),
+                is_active=True,
+            )
+            db.add(admin)
+            db.commit()
+            logger.info("Bootstrapped configured admin user %s.", email)
+            return
+
+        needs_update = (
+            not admin.password_hash
+            or not verify_password(configured_password, admin.password_hash)
+            or admin.role != UserRole.ADMIN
+            or not admin.is_active
+        )
+
+        if needs_update:
+            admin.password_hash = hash_password(configured_password)
+            admin.role = UserRole.ADMIN
+            admin.is_active = True
+            db.add(admin)
+            db.commit()
+            logger.info("Repaired configured bootstrap admin user %s.", email)
+
+        return
+
     if db.query(User).count() > 0:
         return
 
-    password = settings.bootstrap_admin_password or secrets.token_urlsafe(12)
+    password = secrets.token_urlsafe(12)
     admin = User(
-        email=settings.bootstrap_admin_email,
+        email=email,
         name="Admin",
         role=UserRole.ADMIN,
         password_hash=hash_password(password),
@@ -99,13 +149,10 @@ def bootstrap_admin_if_needed(db) -> None:
     db.add(admin)
     db.commit()
 
-    if not settings.bootstrap_admin_password:
-        logger.warning(
-            "Bootstrapped first admin user %s with a GENERATED password: %s "
-            "— this is printed ONCE and not recoverable. Log in and note it "
-            "down, or set BOOTSTRAP_ADMIN_PASSWORD in .env before first run.",
-            settings.bootstrap_admin_email,
-            password,
-        )
-    else:
-        logger.info("Bootstrapped first admin user %s from BOOTSTRAP_ADMIN_PASSWORD.", settings.bootstrap_admin_email)
+    logger.warning(
+        "Bootstrapped first admin user %s with a GENERATED password: %s "
+        "— this is printed ONCE and not recoverable. Set "
+        "BOOTSTRAP_ADMIN_PASSWORD before first run.",
+        email,
+        password,
+    )
