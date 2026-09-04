@@ -44,7 +44,7 @@ class User(Base):
     # login and never set a password.
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role_enum"), default=UserRole.EDITOR, nullable=False)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role_enum", values_callable=lambda x: [e.value for e in x]), default=UserRole.EDITOR, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
