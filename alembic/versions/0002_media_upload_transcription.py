@@ -8,9 +8,9 @@ Create Date: 2026-08-23
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
 
 # revision identifiers, used by Alembic.
 revision: str = "0002"
@@ -19,16 +19,16 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-media_type_enum = postgresql.ENUM("audio", "video", name="media_type_enum")
-transcription_status_enum = postgresql.ENUM(
+media_type_enum = pg_enum("audio", "video", name="media_type_enum")
+transcription_status_enum = pg_enum(
     "none", "pending", "complete", "failed", name="transcription_status_enum"
 )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    media_type_enum.create(bind, checkfirst=True)
-    transcription_status_enum.create(bind, checkfirst=True)
+    create_enum_if_pg(media_type_enum, bind)
+    create_enum_if_pg(transcription_status_enum, bind)
 
     # Episodes can now be created "media-first" (upload + transcribe
     # later), so a transcript is no longer required at creation time.
@@ -48,16 +48,16 @@ def upgrade() -> None:
         sa.Column("file_path", sa.String(length=1000), nullable=False),
         sa.Column("file_size", sa.Integer(), nullable=False),
         sa.Column("duration", sa.Float(), nullable=True),
-        sa.Column("media_type", media_type_enum, nullable=False),
+        sa.Column("media_type", enum_compat(media_type_enum), nullable=False),
         sa.Column("audio_path", sa.String(length=1000), nullable=True),
         sa.Column("thumbnail_path", sa.String(length=1000), nullable=True),
         sa.Column(
             "transcription_status",
-            transcription_status_enum,
+            enum_compat(transcription_status_enum),
             nullable=False,
             server_default="none",
         ),
-        sa.Column("media_metadata", postgresql.JSONB(), nullable=True),
+        sa.Column("media_metadata", JSONB_COMPAT, nullable=True),
         sa.Column(
             "uploaded_at",
             sa.DateTime(timezone=True),
@@ -70,5 +70,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("media_files")
     op.alter_column("episodes", "transcript", existing_type=sa.Text(), nullable=False)
-    transcription_status_enum.drop(op.get_bind(), checkfirst=True)
-    media_type_enum.drop(op.get_bind(), checkfirst=True)
+    drop_enum_if_pg(transcription_status_enum, op.get_bind())
+    drop_enum_if_pg(media_type_enum, op.get_bind())

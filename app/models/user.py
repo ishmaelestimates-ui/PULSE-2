@@ -12,9 +12,8 @@ Honesty notes:
   - Session tokens are stateless (HS256, see auth_service.py) — there is
     no server-side revocation list, so "logout" is client-side only
     (discard the token). A stolen token remains valid until it expires.
-  - This models the auth core only. Existing endpoints from Sprints 1-7
-    are NOT retrofitted with access control in this pass — see the root
-    README's Sprint 8 section.
+  - The private application API is now protected at router registration
+    time in app.main. Fine-grained role authorization is still evolving.
 """
 import enum
 from datetime import datetime, timezone
@@ -90,9 +89,8 @@ class MagicLinkToken(Base):
 
 
 class ActivityLogEntry(Base):
-    """Only records actions taken through authenticated endpoints. Most
-    of the app (Sprints 1-7) has no auth, so those actions aren't
-    attributed to any user — see module docstring."""
+    """Actions taken through authenticated endpoints. Historical data from
+    pre-auth versions naturally has no user attribution."""
 
     __tablename__ = "activity_log_entries"
 

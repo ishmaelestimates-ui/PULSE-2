@@ -50,6 +50,54 @@
       </div>
     </div>
 
+    <!-- INTELLIGENCE -->
+    <div v-else-if="subTab === 'Intel'" class="pane">
+      <div class="intel-head">
+        <div>
+          <h4>Community Intelligence</h4>
+          <p class="hint">Map where the conversation already exists. PULSE observes public Reddit activity; it does not manufacture grassroots support.</p>
+        </div>
+        <button class="btn btn--primary" :disabled="loadingIntel || !intelSubreddits.trim()" @click="loadIntelligence">
+          {{ loadingIntel ? "Scanning…" : "Scan communities" }}
+        </button>
+      </div>
+      <label class="field">
+        <span>Communities to scan</span>
+        <input v-model="intelSubreddits" placeholder="podcasts, documentary, filmmaking" />
+      </label>
+
+      <div v-if="intel" class="intel-grid">
+        <div class="analysis-card">
+          <h4>Conversation signal</h4>
+          <div class="intel-score">{{ intel.movement_signal?.signal_score ?? 0 }}</div>
+          <p class="hint">{{ intel.movement_signal?.communities_detected ?? 0 }} communities · {{ intel.movement_signal?.total_mentions ?? 0 }} observed mentions</p>
+          <p class="body-text">{{ intel.movement_signal?.interpretation }}</p>
+        </div>
+
+        <div v-for="c in intel.communities" :key="c.subreddit" class="analysis-card">
+          <div class="post-top">
+            <h4>{{ c.subreddit }}</h4>
+            <strong>{{ c.fit_score }}/100 fit</strong>
+          </div>
+          <p class="hint">{{ c.subscribers?.toLocaleString() || "?" }} members · {{ c.active_users?.toLocaleString() || "?" }} active</p>
+          <p v-if="c.topic_overlap?.length" class="hint">Topic overlap: {{ c.topic_overlap.join(", ") }}</p>
+          <p class="hint">Promotion risk: {{ c.promotion_risk }}</p>
+          <p v-if="c.rules?.length" class="rules"><strong>Rules:</strong> {{ c.rules.join(" · ") }}</p>
+        </div>
+
+        <div v-if="intel.opportunities?.length" class="analysis-card intel-opportunities">
+          <h4>Live contribution opportunities</h4>
+          <div v-for="o in intel.opportunities.slice(0, 8)" :key="`${o.subreddit}-${o.source_url}`" class="opportunity">
+            <div class="post-top"><strong>{{ o.subreddit }}</strong><span>{{ o.score }}/100</span></div>
+            <p class="body-text">{{ o.title }}</p>
+            <p class="hint">{{ o.rationale }}</p>
+            <p class="body-text"><strong>Contribution:</strong> {{ o.suggested_contribution }}</p>
+            <a v-if="o.source_url" :href="o.source_url" target="_blank" rel="noopener noreferrer">Open discussion ↗</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- SUBREDDITS -->
     <div v-else-if="subTab === 'Subreddits'" class="pane">
       <div class="search-row">
@@ -127,7 +175,7 @@ const props = defineProps({
   episodeId: { type: Number, required: true },
 });
 
-const subTabs = ["Generate", "Subreddits", "Posts", "Karma", "Comments"];
+const subTabs = ["Generate", "Intel", "Subreddits", "Posts", "Karma", "Comments"];
 const subTab = ref("Generate");
 const error = ref("");
 
@@ -139,6 +187,9 @@ const draft = reactive({ title: "", body: "", flair: "", subreddit: "" });
 const searchQuery = ref("");
 const searchResults = ref([]);
 const analysis = ref(null);
+const intelSubreddits = ref("");
+const intel = ref(null);
+const loadingIntel = ref(false);
 
 const posts = ref([]);
 const integrations = ref([]);
@@ -178,6 +229,18 @@ async function saveDraft() {
     subTab.value = "Posts";
   } catch (err) {
     error.value = err?.response?.data?.detail || "Failed to save draft.";
+  }
+}
+
+async function loadIntelligence() {
+  loadingIntel.value = true;
+  error.value = "";
+  try {
+    intel.value = await api.getRedditIntelligence(props.episodeId, intelSubreddits.value.trim());
+  } catch (err) {
+    error.value = err?.response?.data?.detail || "Community intelligence scan failed.";
+  } finally {
+    loadingIntel.value = false;
   }
 }
 
@@ -390,6 +453,36 @@ select, .field input {
   color: var(--text);
   padding: 8px 10px;
   font-size: 12.5px;
+}
+.intel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.intel-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.intel-score {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  margin: 8px 0;
+}
+.intel-opportunities {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.opportunity {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.opportunity a {
+  color: var(--primary);
+  font-size: 11.5px;
 }
 .analysis-card {
   background: var(--surface-inset);

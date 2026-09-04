@@ -10,10 +10,11 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -53,7 +54,7 @@ class EditorialReview(Base):
     #   weak_section   -> {start, end, reason}
     #   clip_candidate -> {start, end, hook}
     #   opening/closing-> {timestamp, description}
-    decision_reference: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    decision_reference: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False)
 
     status: Mapped[ReviewStatus] = mapped_column(
         Enum(ReviewStatus, name="review_status_enum"),

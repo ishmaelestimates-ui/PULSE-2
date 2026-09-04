@@ -8,9 +8,9 @@ Create Date: 2026-08-24
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
 
 # revision identifiers, used by Alembic.
 revision: str = "0004"
@@ -19,14 +19,14 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-color_grade_source_enum = postgresql.ENUM(
+color_grade_source_enum = pg_enum(
     "lut", "style_transfer", name="color_grade_source_enum"
 )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    color_grade_source_enum.create(bind, checkfirst=True)
+    create_enum_if_pg(color_grade_source_enum, bind)
 
     op.create_table(
         "color_grades",
@@ -38,9 +38,9 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("source", color_grade_source_enum, nullable=False),
+        sa.Column("source", enum_compat(color_grade_source_enum), nullable=False),
         sa.Column("lut_name", sa.String(length=100), nullable=True),
-        sa.Column("style_transfer_params", postgresql.JSONB(), nullable=True),
+        sa.Column("style_transfer_params", JSONB_COMPAT, nullable=True),
         sa.Column("reference_image_path", sa.String(length=1000), nullable=True),
         sa.Column("preview_path", sa.String(length=1000), nullable=False),
         sa.Column("graded_media_path", sa.String(length=1000), nullable=True),
@@ -78,4 +78,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("brand_settings")
     op.drop_table("color_grades")
-    color_grade_source_enum.drop(op.get_bind(), checkfirst=True)
+    drop_enum_if_pg(color_grade_source_enum, op.get_bind())

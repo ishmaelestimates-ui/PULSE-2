@@ -11,10 +11,11 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -62,7 +63,7 @@ class MediaFile(Base):
 
     # codec, resolution (video only), waveform (list[float]), and any
     # other ffprobe/ffmpeg-derived data.
-    media_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    media_metadata: Mapped[dict | None] = mapped_column(JSONB_COMPAT, nullable=True)
 
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False

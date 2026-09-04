@@ -29,13 +29,14 @@ Set these in the Render service's **Environment** tab:
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | The Internal Database URL from step 2 |
-| `SECRET_KEY` | A long random string (signs session tokens) |
+| `SECRET_KEY` | A long random string, at least 32 characters (signs session tokens) |
 | `ENVIRONMENT` | `production` |
 | `GEMINI_API_KEY` | Your Gemini key |
 | `OPENAI_API_KEY` | Only if using `TRANSCRIPTION_PROVIDER=whisper` |
 | `POSTIZ_URL`, `POSTIZ_API_KEY` | Only if using Postiz distribution |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | Sets the first admin login on first boot |
 | `MEDIA_STORAGE_PATH` | `/app/media` (matches the Dockerfile) |
+| `CORS_ORIGINS` | Exact frontend origin(s), comma-separated, e.g. `https://studio.example.com` |
 
 See `.env.example` for the complete list with defaults — anything not listed above
 can usually be left at its default.
@@ -57,3 +58,8 @@ Click **Create Web Service**. Render builds the Docker image, starts the contain
 runs migrations, and boots the app. Watch the deploy logs for the bootstrap-admin
 line (it prints a generated password once if `BOOTSTRAP_ADMIN_PASSWORD` wasn't set —
 copy it immediately, it's not recoverable after that).
+
+
+## Security note
+
+The application API is authenticated in this build. The `/media` directory is still exposed through the current static media mount for frontend compatibility; see `SECURITY.md` before deploying confidential unreleased media to the public internet.

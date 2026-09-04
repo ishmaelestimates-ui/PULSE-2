@@ -10,10 +10,11 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -48,7 +49,7 @@ class ScheduledPost(Base):
     scheduled_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Last engagement snapshot pulled from Postiz, if/when available.
-    engagement_metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    engagement_metrics: Mapped[dict | None] = mapped_column(JSONB_COMPAT, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

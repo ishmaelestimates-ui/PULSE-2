@@ -5,6 +5,7 @@ Settings are loaded from environment variables (optionally via a .env file
 in the project root). See .env.example for the full list of variables.
 """
 from functools import lru_cache
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,9 @@ class Settings(BaseSettings):
     # App
     secret_key: str = "your-secret-key"
     environment: str = "development"
+    # Comma-separated browser origins allowed to call the API. Keep this
+    # explicit in production rather than using a wildcard with credentials.
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     # Export
     resolve_frame_rate: float = 24.0
@@ -61,6 +65,19 @@ class Settings(BaseSettings):
     # it isn't stored anywhere in retrievable form.
     bootstrap_admin_email: str = "admin@example.com"
     bootstrap_admin_password: str = ""
+
+    @model_validator(mode="after")
+    def validate_production_security(self):
+        if self.environment.lower() == "production":
+            if len(self.secret_key) < 32 or self.secret_key == "your-secret-key":
+                raise ValueError("SECRET_KEY must be a random value of at least 32 characters in production.")
+            if self.database_url.startswith("postgresql://user:pass@"):
+                raise ValueError("DATABASE_URL must be configured for production.")
+            if not self.cors_origins.strip() or "*" in {o.strip() for o in self.cors_origins.split(",") if o.strip()}:
+                raise ValueError("CORS_ORIGINS must be an explicit origin allowlist in production; wildcard is not allowed.")
+            if not self.bootstrap_admin_password or len(self.bootstrap_admin_password) < 12:
+                raise ValueError("BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters in production.")
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

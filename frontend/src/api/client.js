@@ -5,9 +5,8 @@ import axios from "axios";
 // both dev and behind a reverse proxy in production.
 const http = axios.create({ baseURL: "/" });
 
-// Attach the session token (if present) to every request. Most Sprint
-// 1-7 endpoints don't require auth yet — see the root README's Sprint 8
-// section — so this is additive, not a hard gate.
+// Attach the session token to every API request. The backend now protects
+// all private application routers at registration time.
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem("pulse_token");
   if (token) {
@@ -17,6 +16,19 @@ http.interceptors.request.use((config) => {
 });
 
 export const api = {
+  // --- Guardrails: isolated autosave + recovery ---
+  createAutosave: (episodeId, data) =>
+    http.post("/api/v1/autosave", { episode_id: episodeId, data }).then((r) => r.data),
+
+  getAutosave: (episodeId) =>
+    http.get(`/api/v1/autosave/${episodeId}`).then((r) => r.data),
+
+  getAutosaveHistory: (episodeId, limit = 10) =>
+    http.get(`/api/v1/autosave/${episodeId}/history`, { params: { limit } }).then((r) => r.data),
+
+  recoverAutosave: (episodeId) =>
+    http.get(`/api/v1/recovery/${episodeId}`).then((r) => r.data),
+
   listEpisodes: () => http.get("/api/v1/episodes").then((r) => r.data),
 
   getEpisode: (id) => http.get(`/api/v1/episodes/${id}`).then((r) => r.data),
@@ -199,6 +211,14 @@ export const api = {
 
   getRedditPerformance: (episodeId) =>
     http.get(`/api/v1/episodes/${episodeId}/reddit/performance`).then((r) => r.data),
+  getRedditIntelligence: (episodeId, subreddits) =>
+    http.get(`/api/v1/episodes/${episodeId}/reddit/intelligence`, { params: { subreddits } }).then((r) => r.data),
+
+  getRedditOpportunities: (episodeId) =>
+    http.get(`/api/v1/episodes/${episodeId}/reddit/opportunities`).then((r) => r.data),
+
+  getRedditMovementSignal: (queries) =>
+    http.post("/api/v1/reddit/movement-signal", { queries }).then((r) => r.data),
 
   suggestCommentReply: (commentBody, episodeContext) =>
     http

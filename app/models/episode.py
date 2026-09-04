@@ -9,10 +9,10 @@ rows (see app/models/editorial_review.py), linked via `episode_id`.
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
 
 
 def _utcnow() -> datetime:
@@ -34,13 +34,13 @@ class Episode(Base):
 
     # Raw analysis payload returned by Gemini, kept alongside the
     # normalized EditorialReview rows for auditability/debugging.
-    analysis: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    analysis: Mapped[dict | None] = mapped_column(JSONB_COMPAT, nullable=True)
 
     # Segment-level transcript timestamps (list of {start, end, text}),
     # populated by POST /transcribe. Kept separate from `transcript`
     # (the flattened full text) so the frontend can sync playback to the
     # transcript without re-deriving offsets from plain text.
-    transcript_segments: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    transcript_segments: Mapped[list | None] = mapped_column(JSONB_COMPAT, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False

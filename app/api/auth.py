@@ -194,6 +194,9 @@ def get_me(user: User = Depends(get_current_user)):
 
 @router.post("/logout")
 def logout(user: User = Depends(get_current_user)):
-    """Stateless tokens — this is a no-op server-side. Discard the token
-    client-side; there is no revocation list."""
-    return {"message": "Logged out client-side. Token remains technically valid until it expires."}
+    """Client-side logout for the current stateless token architecture.
+
+    The frontend removes the token immediately. A future session table can
+    add server-side revocation without changing the endpoint contract.
+    """
+    return {"message": "Logged out on this client."}

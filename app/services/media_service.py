@@ -58,9 +58,14 @@ def classify_media_type(filename: str) -> MediaType:
 
 
 def build_media_url(path: Path) -> str:
-    """Build the public URL for a file under MEDIA_STORAGE_PATH, matching
-    the StaticFiles mount configured in app.main (`/media` -> storage
-    root). E.g. `<root>/uploads/3/abc.mp4` -> `/media/uploads/3/abc.mp4`."""
+    """Build the application URL for a stored media file.
+
+    The current frontend uses same-origin media URLs, so authorization is
+    still enforced at the application/API boundary before exposing metadata.
+    A signed-download or cookie-based media layer should replace the static
+    mount before handling highly confidential unreleased media on the open
+    internet.
+    """
     settings = get_settings()
     root = Path(settings.media_storage_path).resolve()
     relative = path.resolve().relative_to(root)

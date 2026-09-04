@@ -23,10 +23,11 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -39,7 +40,7 @@ class FameScoreSnapshot(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     episode_id: Mapped[int] = mapped_column(ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False, index=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
-    components: Mapped[dict] = mapped_column(JSONB, nullable=False)  # engagement/reach_proxy/authority_proxy/momentum
+    components: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False)  # engagement/reach_proxy/authority_proxy/momentum
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     episode: Mapped["Episode"] = relationship("Episode", back_populates="fame_snapshots")

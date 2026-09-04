@@ -8,9 +8,9 @@ Create Date: 2026-08-25
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg
 
 # revision identifiers, used by Alembic.
 revision: str = "0007"
@@ -19,18 +19,18 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-festival_match_status_enum = postgresql.ENUM(
+festival_match_status_enum = pg_enum(
     "suggested", "pending", "submitted", "accepted", "rejected", name="festival_match_status_enum"
 )
-territory_release_status_enum = postgresql.ENUM("planned", "released", name="territory_release_status_enum")
-milestone_status_enum = postgresql.ENUM("pending", "in_progress", "done", name="milestone_status_enum")
+territory_release_status_enum = pg_enum("planned", "released", name="territory_release_status_enum")
+milestone_status_enum = pg_enum("pending", "in_progress", "done", name="milestone_status_enum")
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    festival_match_status_enum.create(bind, checkfirst=True)
-    territory_release_status_enum.create(bind, checkfirst=True)
-    milestone_status_enum.create(bind, checkfirst=True)
+    create_enum_if_pg(festival_match_status_enum, bind)
+    create_enum_if_pg(territory_release_status_enum, bind)
+    create_enum_if_pg(milestone_status_enum, bind)
 
     op.create_table(
         "film_acts",
@@ -73,7 +73,7 @@ def upgrade() -> None:
         sa.Column("deadline", sa.Date(), nullable=True),
         sa.Column("entry_fee", sa.String(length=100), nullable=True),
         sa.Column("verified", sa.Boolean(), nullable=False, server_default="false"),
-        sa.Column("status", festival_match_status_enum, nullable=False, server_default="suggested"),
+        sa.Column("status", enum_compat(festival_match_status_enum), nullable=False, server_default="suggested"),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -88,7 +88,7 @@ def upgrade() -> None:
         ),
         sa.Column("territory", sa.String(length=100), nullable=False),
         sa.Column("release_date", sa.Date(), nullable=False),
-        sa.Column("status", territory_release_status_enum, nullable=False, server_default="planned"),
+        sa.Column("status", enum_compat(territory_release_status_enum), nullable=False, server_default="planned"),
         sa.Column("notes", sa.Text(), nullable=True),
     )
 
@@ -101,7 +101,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("due_date", sa.Date(), nullable=True),
         sa.Column("completed_date", sa.Date(), nullable=True),
-        sa.Column("status", milestone_status_enum, nullable=False, server_default="pending"),
+        sa.Column("status", enum_compat(milestone_status_enum), nullable=False, server_default="pending"),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -133,6 +133,6 @@ def downgrade() -> None:
     op.drop_table("film_acts")
 
     bind = op.get_bind()
-    milestone_status_enum.drop(bind, checkfirst=True)
-    territory_release_status_enum.drop(bind, checkfirst=True)
-    festival_match_status_enum.drop(bind, checkfirst=True)
+    drop_enum_if_pg(milestone_status_enum, bind)
+    drop_enum_if_pg(territory_release_status_enum, bind)
+    drop_enum_if_pg(festival_match_status_enum, bind)

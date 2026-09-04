@@ -11,10 +11,11 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -44,7 +45,7 @@ class ColorGrade(Base):
     # Set when source=style_transfer: Gemini's suggested grading
     # parameters (brightness/contrast/saturation/gamma/temperature/tint)
     # plus its written rationale.
-    style_transfer_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    style_transfer_params: Mapped[dict | None] = mapped_column(JSONB_COMPAT, nullable=True)
     reference_image_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # Always populated: a fast single-frame preview with the grade applied.

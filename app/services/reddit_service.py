@@ -263,3 +263,177 @@ def search_mentions(query: str, limit: int = 15) -> list[dict]:
             }
         )
     return results
+
+# ---------------------------------------------------------------------------
+# Community intelligence
+# ---------------------------------------------------------------------------
+
+_STOPWORDS = {
+    "about", "after", "again", "also", "because", "being", "between", "could",
+    "from", "have", "into", "more", "most", "other", "over", "really", "should",
+    "some", "than", "that", "their", "there", "these", "they", "this", "those",
+    "through", "very", "what", "when", "where", "which", "while", "with", "would",
+    "your", "you", "podcast", "episode", "show", "like", "just", "about", "them",
+}
+
+
+def _tokens(text: str) -> set[str]:
+    words = re.findall(r"[a-zA-Z0-9][a-zA-Z0-9'-]{2,}", (text or "").lower())
+    return {w.strip("'-") for w in words if w not in _STOPWORDS}
+
+
+def _community_posts(name: str, endpoint: str = "new", limit: int = 25) -> list[dict]:
+    name = name.lstrip("r/").strip("/")
+    try:
+        resp = httpx.get(
+            f"{REDDIT_BASE}/r/{name}/{endpoint}.json",
+            params={"limit": min(limit, 50), "raw_json": 1},
+            headers=_reddit_headers(),
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        children = resp.json().get("data", {}).get("children", [])
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Reddit community scan failed ({exc.response.status_code}).") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Could not reach Reddit: {exc}") from exc
+
+    posts = []
+    for child in children:
+        d = child.get("data", {})
+        posts.append({
+            "id": d.get("id"),
+            "title": d.get("title") or "",
+            "selftext": (d.get("selftext") or "")[:4000],
+            "score": int(d.get("score") or 0),
+            "comments": int(d.get("num_comments") or 0),
+            "author": d.get("author"),
+            "flair": d.get("link_flair_text"),
+            "url": f"{REDDIT_BASE}{d.get('permalink')}" if d.get("permalink") else None,
+            "created_utc": d.get("created_utc"),
+            "is_self": bool(d.get("is_self")),
+        })
+    return posts
+
+
+def build_community_dna(name: str, episode_topics: list[str] | None = None, episode_thesis: str = "") -> dict:
+    """Build an observational 'Community DNA' profile from live public data.
+
+    This describes what a community is discussing and what its rules emphasize;
+    it does not infer identities or recommend astroturfing.
+    """
+    analysis = analyze_subreddit(name)
+    recent = _community_posts(name, "new", 25)
+    hot = _community_posts(name, "hot", 10)
+    topic_tokens = _tokens(" ".join(episode_topics or []) + " " + episode_thesis)
+    community_text = " ".join((p["title"] + " " + p["selftext"]) for p in recent)
+    community_tokens = _tokens(community_text)
+    overlap = sorted(topic_tokens & community_tokens)
+
+    question_posts = sum(1 for p in recent if "?" in p["title"] or "?" in p["selftext"][:500])
+    avg_comments = round(sum(p["comments"] for p in recent) / max(1, len(recent)), 1)
+    avg_score = round(sum(p["score"] for p in recent) / max(1, len(recent)), 1)
+    active_ratio = None
+    if analysis.get("subscribers") and analysis.get("active_users") is not None:
+        active_ratio = round(min(1.0, analysis["active_users"] / max(1, analysis["subscribers"])), 4)
+
+    rules_blob = " ".join(analysis.get("rules_summary") or []).lower()
+    promo_risk = "high" if any(k in rules_blob for k in ("self-promotion", "promotion", "advertising", "spam")) else "unknown"
+    fit = min(100.0, 35 + len(overlap) * 10 + min(20, avg_comments / 2))
+    if promo_risk == "high":
+        fit = max(0.0, fit - 15)
+
+    return {
+        "subreddit": analysis["name"],
+        "subscribers": analysis.get("subscribers"),
+        "active_users": analysis.get("active_users"),
+        "active_ratio": active_ratio,
+        "topic_overlap": overlap[:15],
+        "conversation_density": {"avg_comments": avg_comments, "avg_score": avg_score, "question_posts": question_posts},
+        "content_signals": [
+            {"title": p["title"], "comments": p["comments"], "score": p["score"], "flair": p["flair"], "url": p["url"]}
+            for p in hot[:8]
+        ],
+        "promotion_risk": promo_risk,
+        "fit_score": round(fit, 1),
+        "rules": analysis.get("rules_summary", []),
+        "note": "Observational community intelligence from public Reddit data. It is for choosing where to participate, not for disguising promotion as grassroots activity.",
+    }
+
+
+def find_conversation_opportunities(name: str, episode_topics: list[str] | None = None, episode_thesis: str = "", limit: int = 8) -> list[dict]:
+    """Find live discussion opportunities where a creator can contribute value.
+
+    Opportunities are scored from public post signals plus topical overlap. The
+    output intentionally favors questions, high-comment discussions and resource
+    requests over generic promotional slots.
+    """
+    topic_tokens = _tokens(" ".join(episode_topics or []) + " " + episode_thesis)
+    posts = _community_posts(name, "new", 40)
+    opportunities = []
+    for p in posts:
+        text = f"{p['title']} {p['selftext']}"
+        overlap = topic_tokens & _tokens(text)
+        is_question = "?" in p["title"] or any(x in text.lower() for x in ("how do", "any advice", "looking for", "recommend", "thoughts on"))
+        resource_signal = any(x in text.lower() for x in ("resources", "source", "book", "study", "research", "tool", "recommend"))
+        discussion_signal = p["comments"] >= 5
+        if not (overlap or is_question or discussion_signal):
+            continue
+        score = min(100.0, len(overlap) * 18 + min(35, p["comments"] * 2) + (20 if is_question else 0) + (10 if resource_signal else 0))
+        if score < 25:
+            continue
+        if is_question:
+            kind = "question"
+            contribution = "Answer the question directly with a specific, useful point from your experience; mention the episode only if it adds genuine evidence and the subreddit permits it."
+        elif resource_signal:
+            kind = "resource_request"
+            contribution = "Contribute a concrete resource, example, source, or practical takeaway first; keep any episode reference secondary and disclosed."
+        else:
+            kind = "active_discussion"
+            contribution = "Join the existing discussion with an original observation or counterpoint. Do not drop a link unless the thread and subreddit rules clearly allow it."
+        opportunities.append({
+            "subreddit": f"r/{name.lstrip('r/').strip('/')}",
+            "source_url": p["url"],
+            "opportunity_type": kind,
+            "title": p["title"],
+            "rationale": f"Topic overlap: {', '.join(sorted(overlap)[:6]) or 'none'}; {p['comments']} comments; {'question' if is_question else 'discussion'} signal detected.",
+            "suggested_contribution": contribution,
+            "score": round(score, 1),
+        })
+    opportunities.sort(key=lambda x: x["score"], reverse=True)
+    return opportunities[:limit]
+
+
+def detect_movement_signals(queries: list[str], limit: int = 20) -> dict:
+    """Detect cross-community conversation growth from public Reddit search.
+
+    A 'movement signal' means sustained discussion across multiple communities;
+    it never means PULSE should manufacture, coordinate, or impersonate support.
+    """
+    by_subreddit: dict[str, dict] = {}
+    total_mentions = 0
+    for query in queries[:8]:
+        if not query.strip():
+            continue
+        try:
+            results = search_mentions(query, limit=limit)
+        except HTTPException:
+            continue
+        for r in results:
+            total_mentions += 1
+            platform = r.get("platform", "reddit")
+            subreddit = platform.split("r/", 1)[1].rstrip(")") if "r/" in platform else "unknown"
+            row = by_subreddit.setdefault(subreddit, {"subreddit": subreddit, "mentions": 0, "examples": []})
+            row["mentions"] += 1
+            if len(row["examples"]) < 3:
+                row["examples"].append({"url": r.get("url"), "excerpt": r.get("excerpt", "")[:300]})
+    communities = sorted(by_subreddit.values(), key=lambda x: x["mentions"], reverse=True)
+    cross_community = len(communities)
+    signal = min(100.0, cross_community * 15 + sum(min(10, x["mentions"]) for x in communities[:10]) * 3)
+    return {
+        "signal_score": round(signal, 1),
+        "communities_detected": cross_community,
+        "total_mentions": total_mentions,
+        "communities": communities[:10],
+        "interpretation": "Conversation is appearing across multiple communities; this is an observation, not evidence of grassroots causation or a recommendation to manufacture support.",
+    }

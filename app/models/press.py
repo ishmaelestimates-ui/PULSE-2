@@ -15,10 +15,11 @@ import enum
 from datetime import date, datetime, timezone
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -35,15 +36,15 @@ class PressKit(Base):
 
     press_release: Mapped[str] = mapped_column(Text, nullable=False)
     # {"100": "...", "250": "...", "500": "..."}
-    synopsis: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    synopsis: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False)
     # [{"name": "...", "bio": "..."}] — drafts, meant to be edited by a human
-    bios: Mapped[list] = mapped_column(JSONB, nullable=False)
+    bios: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
     # [{"text": "...", "timestamp": float, "review_id": int|null}] — text
     # pulled from the episode's own transcript, not fabricated
-    quotes: Mapped[list] = mapped_column(JSONB, nullable=False)
+    quotes: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
     # [{"question": "...", "answer": "..."}]
-    faq: Mapped[list] = mapped_column(JSONB, nullable=False)
-    contact_info: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    faq: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
+    contact_info: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False, default=dict)
 
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False

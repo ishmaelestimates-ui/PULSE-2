@@ -2,7 +2,7 @@
 Brand settings endpoints.
 
 Single global settings row (see app/models/brand_settings.py for why —
-there's no auth/user system yet). Logo and intro/outro music are stored
+brand settings are workspace-global in this build). Logo and intro/outro music are stored
 as plain uploaded files under MEDIA_STORAGE_PATH/brand/, reusing the same
 static-serving mount as episode media.
 """

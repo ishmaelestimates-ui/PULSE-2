@@ -14,6 +14,8 @@ from app.config import get_settings
 from app.database import Base
 from app.models import (  # noqa: F401 - ensure models are registered
     ActivityLogEntry,
+    AuditLog,
+    AutoSave,
     BrandSettings,
     BudgetItem,
     CampaignPack,
@@ -36,6 +38,8 @@ from app.models import (  # noqa: F401 - ensure models are registered
     RedditComment,
     RedditKarma,
     RedditPost,
+    RedditCommunitySnapshot,
+    RedditOpportunity,
     ScheduledPost,
     PressKit,
     TerritoryRelease,

@@ -22,7 +22,24 @@ const routes = [
   { path: "/features", name: "features", component: FeatureListView },
 ];
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes,
 });
+
+router.beforeEach((to) => {
+  const token = localStorage.getItem("pulse_token");
+  const publicPaths = new Set(["/login", "/accept-invite", "/magic-link"]);
+
+  if (!token && !publicPaths.has(to.path)) {
+    return { name: "login", query: { redirect: to.fullPath } };
+  }
+
+  if (token && to.name === "login") {
+    return { name: "episodes" };
+  }
+
+  return true;
+});
+
+export default router;

@@ -8,7 +8,7 @@ orchestration / load balancer probes.
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +16,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import (
     analysis,
+    audit,
+    autosave,
+    recovery,
     auth,
     brand_settings,
     campaign,
@@ -33,6 +36,7 @@ from app.api import (
 )
 from app.config import get_settings
 from app.database import SessionLocal
+from app.api.deps import get_current_user
 from app.services import auth_service
 
 logging.basicConfig(level=logging.INFO)
@@ -46,31 +50,39 @@ app = FastAPI(
     version="0.8.0",
 )
 
-# Permissive CORS for MVP/local development. Tighten allow_origins before
-# deploying to production.
+# Browser origins are explicit so authenticated requests cannot be made
+# from an arbitrary website. The development defaults are localhost-only.
+allow_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-app.include_router(episodes.router)
-app.include_router(analysis.router)
-app.include_router(reviews.router)
-app.include_router(media.router)
-app.include_router(color.router)
-app.include_router(brand_settings.router)
-app.include_router(campaign.router)
-app.include_router(press.router)
-app.include_router(reddit.router)
-app.include_router(distribution.router)
-app.include_router(film.router)
-app.include_router(dashboard.router)
+# Every application router below auth is protected at the router boundary.
+# Individual admin-only endpoints keep their finer-grained dependencies.
+_PRIVATE_ROUTER_DEPENDENCIES = [Depends(get_current_user)]
+app.include_router(episodes.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(analysis.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(reviews.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(media.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(color.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(brand_settings.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(campaign.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(press.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(reddit.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(distribution.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(film.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(dashboard.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
 app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(fame.router)
+app.include_router(users.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(fame.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(autosave.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(recovery.router, dependencies=_PRIVATE_ROUTER_DEPENDENCIES)
+app.include_router(audit.router)
+
 
 
 @app.on_event("startup")
@@ -96,6 +108,18 @@ media_root.mkdir(parents=True, exist_ok=True)
 (media_root / "derived").mkdir(parents=True, exist_ok=True)
 (media_root / "brand").mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=str(media_root)), name="media")
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if settings.environment.lower() == "production":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 
 @app.exception_handler(HTTPException)

@@ -8,9 +8,9 @@ Create Date: 2026-08-26
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
 
 # revision identifiers, used by Alembic.
 revision: str = "0008"
@@ -19,24 +19,24 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-user_role_enum = postgresql.ENUM("admin", "editor", name="user_role_enum")
-invite_role_enum = postgresql.ENUM("admin", "editor", name="invite_role_enum")
-invite_status_enum = postgresql.ENUM("pending", "accepted", "expired", "revoked", name="invite_status_enum")
-mention_sentiment_enum = postgresql.ENUM(
+user_role_enum = pg_enum("admin", "editor", name="user_role_enum")
+invite_role_enum = pg_enum("admin", "editor", name="invite_role_enum")
+invite_status_enum = pg_enum("pending", "accepted", "expired", "revoked", name="invite_status_enum")
+mention_sentiment_enum = pg_enum(
     "positive", "negative", "neutral", "unanalyzed", name="mention_sentiment_enum"
 )
-cultural_footprint_type_enum = postgresql.ENUM(
+cultural_footprint_type_enum = pg_enum(
     "meme", "reference", "citation", "other", name="cultural_footprint_type_enum"
 )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    user_role_enum.create(bind, checkfirst=True)
-    invite_role_enum.create(bind, checkfirst=True)
-    invite_status_enum.create(bind, checkfirst=True)
-    mention_sentiment_enum.create(bind, checkfirst=True)
-    cultural_footprint_type_enum.create(bind, checkfirst=True)
+    create_enum_if_pg(user_role_enum, bind)
+    create_enum_if_pg(invite_role_enum, bind)
+    create_enum_if_pg(invite_status_enum, bind)
+    create_enum_if_pg(mention_sentiment_enum, bind)
+    create_enum_if_pg(cultural_footprint_type_enum, bind)
 
     op.create_table(
         "users",
@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.Column("email", sa.String(length=255), nullable=False, unique=True, index=True),
         sa.Column("name", sa.String(length=255), nullable=True),
         sa.Column("password_hash", sa.String(length=255), nullable=True),
-        sa.Column("role", user_role_enum, nullable=False, server_default="editor"),
+        sa.Column("role", enum_compat(user_role_enum), nullable=False, server_default="editor"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
@@ -54,9 +54,9 @@ def upgrade() -> None:
         "invites",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
         sa.Column("email", sa.String(length=255), nullable=False, index=True),
-        sa.Column("role", invite_role_enum, nullable=False, server_default="editor"),
+        sa.Column("role", enum_compat(invite_role_enum), nullable=False, server_default="editor"),
         sa.Column("token", sa.String(length=255), nullable=False, unique=True, index=True),
-        sa.Column("status", invite_status_enum, nullable=False, server_default="pending"),
+        sa.Column("status", enum_compat(invite_status_enum), nullable=False, server_default="pending"),
         sa.Column("invited_by_user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -88,7 +88,7 @@ def upgrade() -> None:
             "episode_id", sa.Integer(), sa.ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False, index=True
         ),
         sa.Column("score", sa.Float(), nullable=False),
-        sa.Column("components", postgresql.JSONB(), nullable=False),
+        sa.Column("components", JSONB_COMPAT, nullable=False),
         sa.Column("recorded_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
@@ -103,7 +103,7 @@ def upgrade() -> None:
         sa.Column("url", sa.String(length=1000), nullable=True),
         sa.Column("excerpt", sa.Text(), nullable=False),
         sa.Column("author", sa.String(length=255), nullable=True),
-        sa.Column("sentiment", mention_sentiment_enum, nullable=False, server_default="unanalyzed"),
+        sa.Column("sentiment", enum_compat(mention_sentiment_enum), nullable=False, server_default="unanalyzed"),
         sa.Column("found_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
@@ -127,7 +127,7 @@ def upgrade() -> None:
         sa.Column(
             "episode_id", sa.Integer(), sa.ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False, index=True
         ),
-        sa.Column("item_type", cultural_footprint_type_enum, nullable=False),
+        sa.Column("item_type", enum_compat(cultural_footprint_type_enum), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("url", sa.String(length=1000), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -145,8 +145,8 @@ def downgrade() -> None:
     op.drop_table("users")
 
     bind = op.get_bind()
-    cultural_footprint_type_enum.drop(bind, checkfirst=True)
-    mention_sentiment_enum.drop(bind, checkfirst=True)
-    invite_status_enum.drop(bind, checkfirst=True)
-    invite_role_enum.drop(bind, checkfirst=True)
-    user_role_enum.drop(bind, checkfirst=True)
+    drop_enum_if_pg(cultural_footprint_type_enum, bind)
+    drop_enum_if_pg(mention_sentiment_enum, bind)
+    drop_enum_if_pg(invite_status_enum, bind)
+    drop_enum_if_pg(invite_role_enum, bind)
+    drop_enum_if_pg(user_role_enum, bind)

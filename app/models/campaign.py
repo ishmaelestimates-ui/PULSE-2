@@ -14,10 +14,11 @@ app/services/campaign_service.py for the honesty framing.
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.db_compat import JSONB_COMPAT
+
 
 
 def _utcnow() -> datetime:
@@ -36,29 +37,29 @@ class CampaignPack(Base):
     )
 
     # {platform: {text, hashtags}} for tiktok/youtube/linkedin/x/instagram/facebook
-    social_posts: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    social_posts: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False)
 
     # [{review_id, text, curiosity_gap_score}]
-    hooks: Mapped[list] = mapped_column(JSONB, nullable=False)
+    hooks: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
 
     # {generic_best_times: {platform: [...]}, suggested_dates: [{platform, datetime}]}
-    schedule: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    schedule: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False)
 
     press_blurb: Mapped[str] = mapped_column(Text, nullable=False)
 
     # {subject, preview, body}
-    newsletter: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    newsletter: Mapped[dict] = mapped_column(JSONB_COMPAT, nullable=False)
 
     show_notes: Mapped[str] = mapped_column(Text, nullable=False)
 
     # [{review_id, start, end, label}] summing to ~60s
-    trailer_cutlist: Mapped[list] = mapped_column(JSONB, nullable=False)
+    trailer_cutlist: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
 
     # [{review_id, score, rationale}] — AI ESTIMATE, see campaign_service
-    hype_scores: Mapped[list] = mapped_column(JSONB, nullable=False)
+    hype_scores: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
 
     # [{review_id, platform, label, rationale}] — AI ESTIMATE
-    viral_predictions: Mapped[list] = mapped_column(JSONB, nullable=False)
+    viral_predictions: Mapped[list] = mapped_column(JSONB_COMPAT, nullable=False)
 
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False

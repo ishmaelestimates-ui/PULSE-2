@@ -1,9 +1,9 @@
 """
 Shared FastAPI auth dependencies.
 
-Applied to the NEW user-management and fame endpoints in this sprint.
-NOT retrofitted onto the existing Sprint 1-7 API surface — see the root
-README's Sprint 8 section for why that's a separate, larger task.
+Shared dependencies for authenticated application endpoints. Private routers
+are also protected at registration time in app.main so a newly added endpoint
+on an existing private router cannot accidentally ship without authentication.
 """
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session

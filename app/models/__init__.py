@@ -84,4 +84,12 @@ __all__ = [
     "InviteStatus",
     "MagicLinkToken",
     "ActivityLogEntry",
+    "RedditCommunitySnapshot",
+    "RedditOpportunity",
+    "AutoSave",
+    "AuditLog",
 ]
+from app.models.reddit_intelligence import RedditCommunitySnapshot, RedditOpportunity
+
+from app.models.autosave import AutoSave
+from app.models.audit_log import AuditLog

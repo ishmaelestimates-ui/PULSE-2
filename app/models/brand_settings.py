@@ -1,11 +1,11 @@
 """
 BrandSettings model.
 
-PULSE has no authentication/user system yet (see app/api — every
-endpoint is unscoped), so there is no way to store settings "per user."
-This is implemented as a single global settings row instead (id is
-always 1) representing the whole project/workspace. When auth is added,
-add a user_id/workspace_id column and drop the singleton constraint.
+PULSE has authenticated application endpoints, but brand settings remain
+workspace-global in this build. This is implemented as a single global
+settings row (id is always 1) representing the whole project/workspace.
+When multi-workspace tenancy is introduced, replace the singleton with a
+workspace_id column and appropriate authorization rules.
 """
 from datetime import datetime, timezone
 

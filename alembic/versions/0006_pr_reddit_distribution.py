@@ -8,9 +8,9 @@ Create Date: 2026-08-24
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
 
 # revision identifiers, used by Alembic.
 revision: str = "0006"
@@ -19,24 +19,24 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-journalist_lead_status_enum = postgresql.ENUM(
+journalist_lead_status_enum = pg_enum(
     "new", "pitched", "replied", "declined", name="journalist_lead_status_enum"
 )
-embargo_status_enum = postgresql.ENUM("pending", "lifted", "broken", name="embargo_status_enum")
-reddit_post_status_enum = postgresql.ENUM(
+embargo_status_enum = pg_enum("pending", "lifted", "broken", name="embargo_status_enum")
+reddit_post_status_enum = pg_enum(
     "draft", "scheduled", "posted", "removed", name="reddit_post_status_enum"
 )
-scheduled_post_status_enum = postgresql.ENUM(
+scheduled_post_status_enum = pg_enum(
     "draft", "scheduled", "published", "failed", name="scheduled_post_status_enum"
 )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    journalist_lead_status_enum.create(bind, checkfirst=True)
-    embargo_status_enum.create(bind, checkfirst=True)
-    reddit_post_status_enum.create(bind, checkfirst=True)
-    scheduled_post_status_enum.create(bind, checkfirst=True)
+    create_enum_if_pg(journalist_lead_status_enum, bind)
+    create_enum_if_pg(embargo_status_enum, bind)
+    create_enum_if_pg(reddit_post_status_enum, bind)
+    create_enum_if_pg(scheduled_post_status_enum, bind)
 
     # --- PR module ---
     op.create_table(
@@ -47,11 +47,11 @@ def upgrade() -> None:
             nullable=False, unique=True, index=True,
         ),
         sa.Column("press_release", sa.Text(), nullable=False),
-        sa.Column("synopsis", postgresql.JSONB(), nullable=False),
-        sa.Column("bios", postgresql.JSONB(), nullable=False),
-        sa.Column("quotes", postgresql.JSONB(), nullable=False),
-        sa.Column("faq", postgresql.JSONB(), nullable=False),
-        sa.Column("contact_info", postgresql.JSONB(), nullable=False, server_default="{}"),
+        sa.Column("synopsis", JSONB_COMPAT, nullable=False),
+        sa.Column("bios", JSONB_COMPAT, nullable=False),
+        sa.Column("quotes", JSONB_COMPAT, nullable=False),
+        sa.Column("faq", JSONB_COMPAT, nullable=False),
+        sa.Column("contact_info", JSONB_COMPAT, nullable=False, server_default="{}"),
         sa.Column(
             "generated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.Column("beat", sa.String(length=255), nullable=True),
         sa.Column("email", sa.String(length=255), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column("status", journalist_lead_status_enum, nullable=False, server_default="new"),
+        sa.Column("status", enum_compat(journalist_lead_status_enum), nullable=False, server_default="new"),
         sa.Column("pitch_text", sa.Text(), nullable=True),
         sa.Column("pitched_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -90,7 +90,7 @@ def upgrade() -> None:
         ),
         sa.Column("embargo_date", sa.Date(), nullable=False),
         sa.Column("follow_up_date", sa.Date(), nullable=True),
-        sa.Column("status", embargo_status_enum, nullable=False, server_default="pending"),
+        sa.Column("status", enum_compat(embargo_status_enum), nullable=False, server_default="pending"),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -130,7 +130,7 @@ def upgrade() -> None:
         sa.Column("body", sa.Text(), nullable=False),
         sa.Column("flair", sa.String(length=100), nullable=True),
         sa.Column("disclosure_note", sa.String(length=255), nullable=False),
-        sa.Column("status", reddit_post_status_enum, nullable=False, server_default="draft"),
+        sa.Column("status", enum_compat(reddit_post_status_enum), nullable=False, server_default="draft"),
         sa.Column("scheduled_time", sa.DateTime(timezone=True), nullable=True),
         sa.Column("postiz_post_id", sa.String(length=255), nullable=True),
         sa.Column("posted_at", sa.DateTime(timezone=True), nullable=True),
@@ -182,9 +182,9 @@ def upgrade() -> None:
         sa.Column("content_text", sa.Text(), nullable=False),
         sa.Column("postiz_integration_id", sa.String(length=255), nullable=True),
         sa.Column("postiz_post_id", sa.String(length=255), nullable=True),
-        sa.Column("status", scheduled_post_status_enum, nullable=False, server_default="draft"),
+        sa.Column("status", enum_compat(scheduled_post_status_enum), nullable=False, server_default="draft"),
         sa.Column("scheduled_time", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("engagement_metrics", postgresql.JSONB(), nullable=True),
+        sa.Column("engagement_metrics", JSONB_COMPAT, nullable=True),
         sa.Column("last_error", sa.Text(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -203,7 +203,7 @@ def downgrade() -> None:
     op.drop_table("press_kits")
 
     bind = op.get_bind()
-    scheduled_post_status_enum.drop(bind, checkfirst=True)
-    reddit_post_status_enum.drop(bind, checkfirst=True)
-    embargo_status_enum.drop(bind, checkfirst=True)
-    journalist_lead_status_enum.drop(bind, checkfirst=True)
+    drop_enum_if_pg(scheduled_post_status_enum, bind)
+    drop_enum_if_pg(reddit_post_status_enum, bind)
+    drop_enum_if_pg(embargo_status_enum, bind)
+    drop_enum_if_pg(journalist_lead_status_enum, bind)

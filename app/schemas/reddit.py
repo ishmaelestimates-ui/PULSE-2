@@ -151,3 +151,28 @@ class PlatformIntegrationOut(BaseModel):
     name: str
     identifier: str
     disabled: bool
+
+class RedditCommunityDNAOut(BaseModel):
+    subreddit: str
+    subscribers: Optional[int] = None
+    active_users: Optional[int] = None
+    active_ratio: Optional[float] = None
+    topic_overlap: list[str] = []
+    conversation_density: dict[str, Any] = {}
+    content_signals: list[dict[str, Any]] = []
+    promotion_risk: str
+    fit_score: float
+    rules: list[str] = []
+    note: str
+
+
+class RedditIntelligenceResponse(BaseModel):
+    episode_id: int
+    communities: list[RedditCommunityDNAOut]
+    opportunities: list[dict[str, Any]]
+    movement_signal: dict[str, Any]
+    generated_at: datetime
+
+
+class RedditMovementRequest(BaseModel):
+    queries: list[str]

@@ -8,9 +8,9 @@ Create Date: 2026-08-22
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.db_compat import pg_enum, enum_compat, create_enum_if_pg, drop_enum_if_pg, JSONB_COMPAT
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"
@@ -19,7 +19,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-decision_type_enum = postgresql.ENUM(
+decision_type_enum = pg_enum(
     "strong_moment",
     "weak_section",
     "clip_candidate",
@@ -27,22 +27,20 @@ decision_type_enum = postgresql.ENUM(
     "closing",
     name="decision_type_enum",
 )
-decision_type_enum.create_type = False
 
-review_status_enum = postgresql.ENUM(
+review_status_enum = pg_enum(
     "recommended",
     "accepted",
     "rejected",
     "unresolved",
     name="review_status_enum",
 )
-review_status_enum.create_type = False
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    decision_type_enum.create(bind, checkfirst=True)
-    review_status_enum.create(bind, checkfirst=True)
+    create_enum_if_pg(decision_type_enum, bind)
+    create_enum_if_pg(review_status_enum, bind)
 
     op.create_table(
         "episodes",
@@ -50,7 +48,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=500), nullable=False),
         sa.Column("duration", sa.Float(), nullable=True),
         sa.Column("transcript", sa.Text(), nullable=False),
-        sa.Column("analysis", postgresql.JSONB(), nullable=True),
+        sa.Column("analysis", JSONB_COMPAT, nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -69,11 +67,11 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("decision_type", decision_type_enum, nullable=False),
-        sa.Column("decision_reference", postgresql.JSONB(), nullable=False),
+        sa.Column("decision_type", enum_compat(decision_type_enum), nullable=False),
+        sa.Column("decision_reference", JSONB_COMPAT, nullable=False),
         sa.Column(
             "status",
-            review_status_enum,
+            enum_compat(review_status_enum),
             nullable=False,
             server_default="recommended",
         ),
@@ -89,5 +87,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("editorial_reviews")
     op.drop_table("episodes")
-    review_status_enum.drop(op.get_bind(), checkfirst=True)
-    decision_type_enum.drop(op.get_bind(), checkfirst=True)
+    drop_enum_if_pg(review_status_enum, op.get_bind())
+    drop_enum_if_pg(decision_type_enum, op.get_bind())

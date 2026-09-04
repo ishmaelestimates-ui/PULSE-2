@@ -20,6 +20,9 @@ from app.schemas.reddit import (
     RedditPostCreate,
     RedditPostOut,
     RedditScheduleRequest,
+    RedditCommunityDNAOut,
+    RedditIntelligenceResponse,
+    RedditMovementRequest,
     SubredditAnalysis,
     SubredditSearchResponse,
 )
@@ -174,3 +177,81 @@ def log_karma(payload: RedditKarmaEntry, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(entry)
     return entry
+
+# ---------------------------------------------------------------------------
+# Reddit Intelligence — community fit, live conversation opportunities,
+# and cross-community momentum signals. This observes public discussion;
+# it does not automate undisclosed grassroots behavior.
+# ---------------------------------------------------------------------------
+
+from datetime import datetime as _dt
+from app.models.reddit_intelligence import RedditCommunitySnapshot, RedditOpportunity
+
+
+def _episode_topics(episode: Episode) -> tuple[list[str], str]:
+    analysis = episode.analysis or {}
+    themes = analysis.get("themes") or []
+    thesis = analysis.get("thesis") or ""
+    return [str(t) for t in themes], str(thesis)
+
+
+@router.get("/episodes/{episode_id}/reddit/intelligence", response_model=RedditIntelligenceResponse)
+def reddit_intelligence(episode_id: int, subreddits: str = Query(..., min_length=1, description="Comma-separated subreddit names"), db: Session = Depends(get_db)):
+    episode = _get_episode_or_404(db, episode_id)
+    topics, thesis = _episode_topics(episode)
+    names = [x.strip() for x in subreddits.split(",") if x.strip()][:8]
+    communities = []
+    opportunities = []
+    for name in names:
+        dna = reddit_service.build_community_dna(name, topics, thesis)
+        communities.append(dna)
+        opportunities.extend(reddit_service.find_conversation_opportunities(name, topics, thesis, limit=5))
+        db.add(RedditCommunitySnapshot(
+            episode_id=episode_id,
+            subreddit=name.lstrip("r/").strip("/"),
+            fit_score=dna["fit_score"],
+            community_dna=dna,
+            rules_summary=dna.get("rules", []),
+        ))
+
+    # Search only compact topical queries. The signal is observational.
+    queries = list(dict.fromkeys([*(topics[:5]), thesis[:120] if thesis else ""]))
+    movement = reddit_service.detect_movement_signals(queries)
+    for opp in opportunities:
+        db.add(RedditOpportunity(episode_id=episode_id, **opp))
+    db.commit()
+
+    return RedditIntelligenceResponse(
+        episode_id=episode_id,
+        communities=communities,
+        opportunities=sorted(opportunities, key=lambda x: x["score"], reverse=True),
+        movement_signal=movement,
+        generated_at=_dt.now(timezone.utc),
+    )
+
+
+@router.get("/episodes/{episode_id}/reddit/opportunities", response_model=list[dict])
+def list_reddit_opportunities(episode_id: int, db: Session = Depends(get_db)):
+    _get_episode_or_404(db, episode_id)
+    rows = db.query(RedditOpportunity).filter(RedditOpportunity.episode_id == episode_id).order_by(RedditOpportunity.score.desc()).limit(50).all()
+    return [
+        {
+            "id": r.id,
+            "subreddit": r.subreddit,
+            "source_url": r.source_url,
+            "opportunity_type": r.opportunity_type,
+            "title": r.title,
+            "rationale": r.rationale,
+            "suggested_contribution": r.suggested_contribution,
+            "score": r.score,
+            "observed_at": r.observed_at,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/reddit/movement-signal", response_model=dict)
+def reddit_movement_signal(payload: RedditMovementRequest):
+    if not payload.queries:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one query is required.")
+    return reddit_service.detect_movement_signals(payload.queries)
