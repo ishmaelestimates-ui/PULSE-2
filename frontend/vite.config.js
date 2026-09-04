@@ -5,6 +5,7 @@ import vue from "@vitejs/plugin-vue";
 // frontend can call relative paths (e.g. `/api/v1/episodes`) without
 // hardcoding a host, and CORS never enters the picture in dev.
 export default defineConfig({
+  base: "/PULSE-2/",
   plugins: [vue()],
   server: {
     port: 5173,

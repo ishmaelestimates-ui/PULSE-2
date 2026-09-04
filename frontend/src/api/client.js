@@ -3,7 +3,7 @@ import axios from "axios";
 // Relative base URL — Vite's dev proxy (see vite.config.js) forwards
 // /api and /media to the FastAPI backend, so this works unmodified in
 // both dev and behind a reverse proxy in production.
-const http = axios.create({ baseURL: "/" });
+const http = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || "/" });
 
 // Attach the session token to every API request. The backend now protects
 // all private application routers at registration time.
