@@ -12,6 +12,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://user:pass@localhost:5432/pulse"
+    # Optional: a non-pooled connection string, used only for running
+    # migrations. Some managed Postgres providers (e.g. Neon, Supabase)
+    # front the main DATABASE_URL with a transaction-mode connection
+    # pooler (PgBouncer or similar), which doesn't reliably hold a
+    # session across the multi-statement DDL transactions Alembic runs —
+    # this can surface as a dropped connection on the very first query.
+    # If set, alembic/env.py uses this instead of database_url for the
+    # migration step; the running app always uses the pooled
+    # database_url, which is what pooling is for. Leave unset if your
+    # database doesn't sit behind a pooler.
+    direct_database_url: str = ""
 
     # Gemini
     gemini_api_key: str = "your-key-here"

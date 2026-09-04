@@ -5,10 +5,12 @@ hardcoded value in alembic.ini, and points autogenerate at the app's
 declarative Base so `alembic revision --autogenerate` picks up model
 changes.
 """
+import time
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.exc import OperationalError
 
 from app.config import get_settings
 from app.database import Base
@@ -53,7 +55,15 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Migrations run multi-statement DDL inside a single transaction; a
+# transaction-mode pooler in front of DATABASE_URL can drop that session
+# mid-migration. Use the direct (non-pooled) URL for this step when one
+# is configured, and fall back to DATABASE_URL otherwise so nothing
+# breaks for setups that don't sit behind a pooler.
+config.set_main_option(
+    "sqlalchemy.url",
+    settings.direct_database_url or settings.database_url,
+)
 
 target_metadata = Base.metadata
 
@@ -76,13 +86,32 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        pool_pre_ping=True,
     )
 
-    with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+    # Managed Postgres (Render and similar) occasionally drops a
+    # freshly-opened connection's SSL session before the first query
+    # completes, most often right after a deploy while the database is
+    # waking up. That's a transient infrastructure hiccup, not a schema
+    # or migration-logic problem, so a short bounded retry here is safe:
+    # it does not touch what the migrations do, and it still fails loudly
+    # (re-raising the real error) if the database is genuinely
+    # unreachable rather than just slow to accept the first connection.
+    max_attempts = 5
+    backoff_seconds = 2
 
-        with context.begin_transaction():
-            context.run_migrations()
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with connectable.connect() as connection:
+                context.configure(connection=connection, target_metadata=target_metadata)
+
+                with context.begin_transaction():
+                    context.run_migrations()
+            break
+        except OperationalError:
+            if attempt == max_attempts:
+                raise
+            time.sleep(backoff_seconds * attempt)
 
 
 if context.is_offline_mode():
