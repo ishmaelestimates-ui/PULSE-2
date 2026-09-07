@@ -127,9 +127,20 @@ def accept_invite(payload: AcceptInviteRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
-    if user is None or not user.is_active or not user.password_hash:
+    user_found = user is not None
+    user_active = bool(user and user.is_active)
+    password_hash_present = bool(user and user.password_hash)
+    if not user_found or not user_active or not password_hash_present:
+        logger.info(
+            "Password login rejected before verification: user_found=%s active=%s hash_present=%s",
+            user_found,
+            user_active,
+            password_hash_present,
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password.")
-    if not auth_service.verify_password(payload.password, user.password_hash):
+    password_verified = auth_service.verify_password(payload.password, user.password_hash)
+    logger.info("Password login verification result: verified=%s", password_verified)
+    if not password_verified:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password.")
 
     user.last_login_at = datetime.now(timezone.utc)
