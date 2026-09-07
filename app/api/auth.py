@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
@@ -127,7 +128,8 @@ def accept_invite(payload: AcceptInviteRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     try:
-        user = db.query(User).filter(User.email == payload.email).first()
+        canonical_email = auth_service.normalize_email(payload.email)
+        user = db.query(User).filter(func.lower(func.trim(User.email)) == canonical_email).first()
     except Exception:
         logger.exception("Password login database lookup failed")
         raise HTTPException(

@@ -12,8 +12,9 @@ from app.config import Settings, get_settings
 from app.database import Base
 from app.models.media_file import MediaFile
 from app.models.user import User, UserRole
-from app.services.auth_service import hash_password
+from app.services import auth_service
 from app.services import media_service
+from app.services.auth_service import hash_password
 
 
 PASSWORD = "correct-horse-battery-staple"
@@ -152,3 +153,48 @@ def test_production_rejects_unconfigured_cors_default():
             secret_key="a" * 32,
             bootstrap_admin_password="a" * 12,
         )
+
+
+def test_bootstrap_is_idempotent_and_normalizes_existing_admin(tmp_path, monkeypatch):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'bootstrap-regression.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    db.add(
+        User(
+            email="  Admin@Example.COM ",
+            name="Existing Admin",
+            role=UserRole.EDITOR,
+            is_active=False,
+            password_hash=hash_password("old-password"),
+        )
+    )
+    db.commit()
+
+    monkeypatch.setattr(
+        auth_service,
+        "get_settings",
+        lambda: type(
+            "BootstrapSettings",
+            (),
+            {
+                "bootstrap_admin_email": "ADMIN@example.com",
+                "bootstrap_admin_password": PASSWORD,
+            },
+        )(),
+    )
+
+    auth_service.bootstrap_admin_if_needed(db)
+    auth_service.bootstrap_admin_if_needed(db)
+
+    admins = db.query(User).all()
+    assert len(admins) == 1
+    assert admins[0].email == "admin@example.com"
+    assert admins[0].is_active is True
+    assert admins[0].role == UserRole.ADMIN
+    assert auth_service.verify_password(PASSWORD, admins[0].password_hash)
+
+    db.close()

@@ -19,11 +19,16 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from sqlalchemy import func
 
 from app.config import get_settings
 
 _PBKDF2_ITERATIONS = 600_000
 _PBKDF2_ALGO = "sha256"
+
+
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
 
 
 def hash_password(password: str) -> str:
@@ -100,11 +105,19 @@ def bootstrap_admin_if_needed(db) -> None:
     logger = logging.getLogger(__name__)
     settings = get_settings()
 
-    email = settings.bootstrap_admin_email
+    email = normalize_email(settings.bootstrap_admin_email)
     configured_password = settings.bootstrap_admin_password
 
     if configured_password:
-        admin = db.query(User).filter(User.email == email).first()
+        matching_admins = (
+            db.query(User)
+            .filter(func.lower(func.trim(User.email)) == email)
+            .order_by(User.id)
+            .all()
+        )
+        if len(matching_admins) > 1:
+            raise RuntimeError("Multiple users match the configured bootstrap email.")
+        admin = matching_admins[0] if matching_admins else None
 
         if admin is None:
             admin = User(
@@ -120,13 +133,15 @@ def bootstrap_admin_if_needed(db) -> None:
             return
 
         needs_update = (
-            not admin.password_hash
+            admin.email != email
+            or not admin.password_hash
             or not verify_password(configured_password, admin.password_hash)
             or admin.role != UserRole.ADMIN
             or not admin.is_active
         )
 
         if needs_update:
+            admin.email = email
             admin.password_hash = hash_password(configured_password)
             admin.role = UserRole.ADMIN
             admin.is_active = True
@@ -161,7 +176,11 @@ def get_safe_bootstrap_status(db) -> dict[str, bool]:
     from app.models.user import User, UserRole
 
     settings = get_settings()
-    bootstrap_user = db.query(User).filter(User.email == settings.bootstrap_admin_email).first()
+    bootstrap_user = (
+        db.query(User)
+        .filter(func.lower(func.trim(User.email)) == normalize_email(settings.bootstrap_admin_email))
+        .first()
+    )
     target_user = db.query(User).filter(User.email == "admin@example.com").first()
     password_configured = bool(settings.bootstrap_admin_password)
 
