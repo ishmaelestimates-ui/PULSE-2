@@ -37,6 +37,12 @@ Set these in the Render service's **Environment** tab:
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` | Sets the first admin login on first boot |
 | `MEDIA_STORAGE_PATH` | `/app/media` (matches the Dockerfile) |
 | `CORS_ORIGINS` | Exact frontend origin(s), comma-separated, e.g. `https://studio.example.com` |
+| `VITE_API_BASE_URL` | `https://pulse-2-i2yf.onrender.com` for the frontend build |
+
+The Render static frontend must receive `VITE_API_BASE_URL` at build time. The
+backend's `CORS_ORIGINS` must include the exact origin where that frontend is
+served, including the GitHub Pages origin if that workflow is used. Do not use
+the development localhost defaults in production.
 
 See `.env.example` for the complete list with defaults — anything not listed above
 can usually be left at its default.

@@ -126,7 +126,14 @@ def accept_invite(payload: AcceptInviteRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    try:
+        user = db.query(User).filter(User.email == payload.email).first()
+    except Exception:
+        logger.exception("Password login database lookup failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        )
     user_found = user is not None
     user_active = bool(user and user.is_active)
     password_hash_present = bool(user and user.password_hash)
@@ -138,18 +145,40 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             password_hash_present,
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password.")
-    password_verified = auth_service.verify_password(payload.password, user.password_hash)
+    try:
+        password_verified = auth_service.verify_password(payload.password, user.password_hash)
+    except Exception:
+        logger.exception("Password login verification failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        )
     logger.info("Password login verification result: verified=%s", password_verified)
     if not password_verified:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password.")
 
-    user.last_login_at = datetime.now(timezone.utc)
-    db.add(user)
-    _log_activity(db, user.id, "login", detail="password")
-    db.commit()
-    db.refresh(user)
+    try:
+        user.last_login_at = datetime.now(timezone.utc)
+        db.add(user)
+        _log_activity(db, user.id, "login", detail="password")
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        db.rollback()
+        logger.exception("Password login database update failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        )
 
-    token = auth_service.create_session_token(user.id, user.role.value)
+    try:
+        token = auth_service.create_session_token(user.id, user.role.value)
+    except Exception:
+        logger.exception("Password login token generation failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        )
     return TokenResponse(access_token=token, user=user)
 
 

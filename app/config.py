@@ -86,6 +86,8 @@ class Settings(BaseSettings):
                 raise ValueError("DATABASE_URL must be configured for production.")
             if not self.cors_origins.strip() or "*" in {o.strip() for o in self.cors_origins.split(",") if o.strip()}:
                 raise ValueError("CORS_ORIGINS must be an explicit origin allowlist in production; wildcard is not allowed.")
+            if self.cors_origins.strip() == "http://localhost:5173,http://localhost:3000":
+                raise ValueError("CORS_ORIGINS must be configured for the deployed frontend in production.")
             if not self.bootstrap_admin_password or len(self.bootstrap_admin_password) < 12:
                 raise ValueError("BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters in production.")
         return self

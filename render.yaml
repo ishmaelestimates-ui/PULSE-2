@@ -29,6 +29,9 @@ services:
     runtime: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://pulse-2-i2yf.onrender.com
 
 databases:
   - name: pulse-db
