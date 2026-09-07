@@ -37,6 +37,12 @@ def _log_activity(db: Session, user_id: int, action: str, detail: str | None = N
     db.add(ActivityLogEntry(user_id=user_id, action=action, detail=detail))
 
 
+def _is_expired(expires_at: datetime) -> bool:
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at < datetime.now(timezone.utc)
+
+
 @router.post("/invites", response_model=InviteOut, status_code=status.HTTP_201_CREATED)
 def create_invite(payload: InviteCreate, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     settings = get_settings()
@@ -93,7 +99,7 @@ def accept_invite(payload: AcceptInviteRequest, db: Session = Depends(get_db)):
     invite = db.query(Invite).filter(Invite.token == payload.token).first()
     if invite is None or invite.status != InviteStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or already-used invite.")
-    if invite.expires_at < datetime.now(timezone.utc):
+    if _is_expired(invite.expires_at):
         invite.status = InviteStatus.EXPIRED
         db.add(invite)
         db.commit()
@@ -169,7 +175,7 @@ def verify_magic_link(payload: MagicLinkVerifyRequest, db: Session = Depends(get
     link = db.query(MagicLinkToken).filter(MagicLinkToken.token == payload.token).first()
     if link is None or link.used_at is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or already-used link.")
-    if link.expires_at < datetime.now(timezone.utc):
+    if _is_expired(link.expires_at):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This link has expired.")
 
     user = db.query(User).filter(User.id == link.user_id).first()
