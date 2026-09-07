@@ -94,6 +94,7 @@ def bootstrap_admin():
     db = SessionLocal()
     try:
         auth_service.bootstrap_admin_if_needed(db)
+        logger.info("Bootstrap auth status: %s", auth_service.get_safe_bootstrap_status(db))
     finally:
         db.close()
 

@@ -143,6 +143,7 @@ def test_configured_bootstrap_repairs_existing_admin(tmp_path, monkeypatch):
             "BootstrapSettings",
             (),
             {
+                "environment": "development",
                 "bootstrap_admin_email": "admin@example.com",
                 "bootstrap_admin_password": "correct-horse-battery-staple",
             },
@@ -156,3 +157,17 @@ def test_configured_bootstrap_repairs_existing_admin(tmp_path, monkeypatch):
     assert admin.is_active is True
     assert auth_service.verify_password("correct-horse-battery-staple", admin.password_hash)
     assert not auth_service.verify_password("old-password", admin.password_hash)
+
+    status = auth_service.get_safe_bootstrap_status(db)
+    assert status == {
+        "environment_production": False,
+        "bootstrap_email_configured": True,
+        "bootstrap_password_configured": True,
+        "bootstrap_user_exists": True,
+        "bootstrap_user_active": True,
+        "bootstrap_user_admin": True,
+        "bootstrap_password_matches": True,
+        "target_admin_exists": True,
+        "target_admin_active": True,
+        "target_admin_has_password_hash": True,
+    }

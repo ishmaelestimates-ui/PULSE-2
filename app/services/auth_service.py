@@ -154,3 +154,31 @@ def bootstrap_admin_if_needed(db) -> None:
         "BOOTSTRAP_ADMIN_PASSWORD before first run.",
         email,
     )
+
+
+def get_safe_bootstrap_status(db) -> dict[str, bool]:
+    """Return non-sensitive bootstrap and target-admin status booleans."""
+    from app.models.user import User, UserRole
+
+    settings = get_settings()
+    bootstrap_user = db.query(User).filter(User.email == settings.bootstrap_admin_email).first()
+    target_user = db.query(User).filter(User.email == "admin@example.com").first()
+    password_configured = bool(settings.bootstrap_admin_password)
+
+    return {
+        "environment_production": settings.environment.lower() == "production",
+        "bootstrap_email_configured": bool(settings.bootstrap_admin_email),
+        "bootstrap_password_configured": password_configured,
+        "bootstrap_user_exists": bootstrap_user is not None,
+        "bootstrap_user_active": bool(bootstrap_user and bootstrap_user.is_active),
+        "bootstrap_user_admin": bool(bootstrap_user and bootstrap_user.role == UserRole.ADMIN),
+        "bootstrap_password_matches": bool(
+            password_configured
+            and bootstrap_user
+            and bootstrap_user.password_hash
+            and verify_password(settings.bootstrap_admin_password, bootstrap_user.password_hash)
+        ),
+        "target_admin_exists": target_user is not None,
+        "target_admin_active": bool(target_user and target_user.is_active),
+        "target_admin_has_password_hash": bool(target_user and target_user.password_hash),
+    }
