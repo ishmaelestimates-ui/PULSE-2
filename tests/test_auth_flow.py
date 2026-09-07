@@ -10,6 +10,7 @@ from app.api.deps import get_db
 from app.config import get_settings
 from app.database import Base
 from app.models.user import User, UserRole
+from app.services import auth_service
 from app.services.auth_service import hash_password
 
 
@@ -114,3 +115,44 @@ def test_malformed_signed_session_token_is_unauthorized(client):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired session token."
+
+
+def test_configured_bootstrap_repairs_existing_admin(tmp_path, monkeypatch):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'bootstrap.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    db.add(
+        User(
+            email="admin@example.com",
+            name="Old Admin",
+            role=UserRole.EDITOR,
+            is_active=False,
+            password_hash=hash_password("old-password"),
+        )
+    )
+    db.commit()
+
+    monkeypatch.setattr(
+        auth_service,
+        "get_settings",
+        lambda: type(
+            "BootstrapSettings",
+            (),
+            {
+                "bootstrap_admin_email": "admin@example.com",
+                "bootstrap_admin_password": "correct-horse-battery-staple",
+            },
+        )(),
+    )
+
+    auth_service.bootstrap_admin_if_needed(db)
+
+    admin = db.query(User).filter(User.email == "admin@example.com").one()
+    assert admin.role == UserRole.ADMIN
+    assert admin.is_active is True
+    assert auth_service.verify_password("correct-horse-battery-staple", admin.password_hash)
+    assert not auth_service.verify_password("old-password", admin.password_hash)

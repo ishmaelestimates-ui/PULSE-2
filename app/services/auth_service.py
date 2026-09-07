@@ -150,9 +150,7 @@ def bootstrap_admin_if_needed(db) -> None:
     db.commit()
 
     logger.warning(
-        "Bootstrapped first admin user %s with a GENERATED password: %s "
-        "— this is printed ONCE and not recoverable. Set "
+        "Bootstrapped first admin user %s with a generated password. Set "
         "BOOTSTRAP_ADMIN_PASSWORD before first run.",
         email,
-        password,
     )
